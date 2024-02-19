@@ -4,6 +4,8 @@ import AuthIdle from "../assets/images/auth-idle.svg";
 import AuthFace from "../assets/images/auth-face.svg";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
+import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
+
 function Login() {
   const [tempAccount, setTempAccount] = useState("");
   const [localUserStream, setLocalUserStream] = useState(null);
@@ -13,6 +15,7 @@ function Login() {
   const [imageError, setImageError] = useState(false);
   const [counter, setCounter] = useState(5);
   const [labeledFaceDescriptors, setLabeledFaceDescriptors] = useState({});
+  const [model, setModel] = useState(null);
   const videoRef = useRef();
   const canvasRef = useRef();
   const faceApiIntervalRef = useRef();
@@ -26,6 +29,20 @@ function Login() {
     return <Navigate to="/" replace={true} />;
   }
 
+  const loadModel = async () => {
+    console.log("loading modal...");
+    // Load the MediaPipe Facemesh package.
+    faceLandmarksDetection.load(
+        faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+        { maxFaces: 1 }
+      ).then(model => {
+        console.log(model);
+        setModel(model);
+        console.log('ready for capture');
+      }).catch(err => {
+        console.log(err);
+      });
+  }
   const loadModels = async () => {
     // const uri = import.meta.env.DEV ? "/models" : "/react-face-auth/models";
     const uri = "/models";
@@ -44,6 +61,7 @@ function Login() {
         .then(async () => {
           const labeledFaceDescriptors = await loadLabeledImages();
           setLabeledFaceDescriptors(labeledFaceDescriptors);
+          await loadModel();
         })
         .then(() => setModelsLoaded(true));
     }
@@ -104,6 +122,16 @@ function Login() {
       const results = resizedDetections.map((d) =>
         faceMatcher.findBestMatch(d.descriptor)
       );
+
+      console.log(videoRef.current);
+
+      const predictions = await model.estimateFaces({
+        input: videoRef.current,
+        returnTensors: false,
+        flipHorizontal: true,
+        predictIrises: true
+      });
+      console.log('predictions: ', predictions);
 
       if (!canvasRef.current) {
         return;
